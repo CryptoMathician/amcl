@@ -638,5 +638,6 @@ var CTX = function(input_parameter) {
 
 // CommonJS module exports
 if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports.CTX = CTX;
+  //module.exports.CTX = CTX;
+  module.exports = CTX;
 }
