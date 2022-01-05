@@ -86,6 +86,63 @@ var ECDH = function(ctx) {
       return b;
     },
 
+    hashit2: function(sha, A, n, B, pad) {
+      var R = [],
+        H,
+        W,
+        i,
+        len;
+
+      if (sha == this.SHA256) {
+        H = new ctx.HASH256();
+      } else if (sha == this.SHA384) {
+        H = new ctx.HASH384();
+      } else if (sha == this.SHA512) {
+        H = new ctx.HASH512();
+      }
+
+      H.process_array(A);
+	// A.forEach((item, index) => {
+	// 	H.process_array(item);
+	// })
+
+      if (n > 0) {
+        H.process_num(n);
+      }
+      if (B != null) {
+        H.process_array(B);
+      }
+      R = H.hash();
+
+      if (R.length == 0) {
+        return null;
+      }
+
+      if (pad == 0) {
+        return R;
+      }
+
+      W = [];
+
+      len = pad;
+
+      if (sha >= len) {
+        for (i = 0; i < len; i++) {
+          W[i] = R[i];
+        }
+      } else {
+        for (i = 0; i < sha; i++) {
+          W[i + len - sha] = R[i];
+        }
+
+        for (i = 0; i < len - sha; i++) {
+          W[i] = 0;
+        }
+      }
+
+      return W;
+    },
+
     hashit: function(sha, A, n, B, pad) {
       var R = [],
         H,
@@ -582,6 +639,67 @@ var ECDH = function(ctx) {
         B;
 
       B = this.hashit(sha, F, 0, null, ctx.BIG.MODBYTES);
+
+      G = ctx.ECP.generator();
+
+      r = new ctx.BIG(0);
+      r.rcopy(ctx.ROM_CURVE.CURVE_Order);
+
+      s = ctx.BIG.fromBytes(S);
+      f = ctx.BIG.fromBytes(B);
+
+      c = new ctx.BIG(0);
+      d = new ctx.BIG(0);
+      V = new ctx.ECP();
+
+      do {
+        u = ctx.BIG.randomnum(r, RNG);
+        w = ctx.BIG.randomnum(r, RNG); /* side channel masking */
+        V.copy(G);
+        V = V.mul(u);
+        vx = V.getX();
+        c.copy(vx);
+        c.mod(r);
+        if (c.iszilch()) {
+          continue;
+        }
+        u = ctx.BIG.modmul(u, w, r);
+        u.invmodp(r);
+        d = ctx.BIG.modmul(s, c, r);
+        d.add(f);
+        d = ctx.BIG.modmul(d, w, r);
+        d = ctx.BIG.modmul(u, d, r);
+      } while (d.iszilch());
+
+      c.toBytes(T);
+      for (i = 0; i < this.EFS; i++) {
+        C[i] = T[i];
+      }
+      d.toBytes(T);
+      for (i = 0; i < this.EFS; i++) {
+        D[i] = T[i];
+      }
+
+      return 0;
+    },
+
+    ECPSP_DSA2: function(sha, RNG, S, F, C, D) {
+      var T = [],
+        i,
+        r,
+        s,
+        f,
+        c,
+        d,
+        u,
+        vx,
+        w,
+        G,
+        V,
+        B;
+
+      //B = this.hashit(sha, F[0], 0, F[1], ctx.BIG.MODBYTES);
+      B = this.hashit2(sha, F[0], 0, F[1], ctx.BIG.MODBYTES);
 
       G = ctx.ECP.generator();
 
